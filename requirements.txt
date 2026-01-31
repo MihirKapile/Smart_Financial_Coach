@@ -1,0 +1,11 @@
+agno
+groq
+streamlit
+pandas
+plotly
+python-dotenv
+pypdf2
+lancedb
+huggingface_hub
+sentence-transformers
+aiofiles
