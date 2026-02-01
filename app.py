@@ -46,8 +46,7 @@ if uploaded_file:
             query = f"""
             I need a deep financial audit. 
             1. Delegate to the Auditor to find my transactions.
-            2. Delegate to the Visual Analyst to generate a PIE CHART of Essential vs Non-Essential spending.
-            3. Verdict on my goal of ${target} in {months} months.
+            2. Delegate to the Forecaster to calculate my progress toward ${target} in {months} months.
             """
             response = coach.run(query)
             status.update(label="Audit Complete!", state="complete")

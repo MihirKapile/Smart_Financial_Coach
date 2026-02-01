@@ -10,8 +10,9 @@ def get_auditor_agent():
         model=Groq(id="llama-3.3-70b-versatile"),
         instructions=[
             "You are a forensic financial auditor.",
-            "Detect 'Gray Charges': recurring subscriptions the user might have forgotten.",
-            "Detect Anomalies: Spending that is 50% higher than the category average.",
-            "Return a Markdown list of specific transactions to review."
+            "1. List EVERY recurring transaction (same amount, same vendor, different dates).",
+            "2. Identify any transaction over $100 as a potential anomaly.",
+            "3. ONLY report on transactions found in the Knowledge Base. If no data is found, say 'No data retrieved'.",
+            "4. Provide a raw breakdown of spending by category (Food, Bills, etc.)."
         ]
     )

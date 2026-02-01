@@ -6,7 +6,6 @@ from agents.auditor import get_auditor_agent
 from agents.forecaster import get_forecaster_agent
 from tools.knowledge import get_knowledge_base
 from tools.visualizer import generate_spending_chart
-from agents.visual_analyst import get_visual_analyst_agent
 from dotenv import load_dotenv
 load_dotenv()
 def get_smart_coach(knowledge_base,persona_name="Wealth Architect"):
@@ -33,7 +32,6 @@ def get_smart_coach(knowledge_base,persona_name="Wealth Architect"):
 
     auditor_agent = get_auditor_agent()
     forecaster_agent = get_forecaster_agent()
-    visual_analyst_agent = get_visual_analyst_agent()
 
     return Team(
         name="Lead Coach Orchestrator",
@@ -42,15 +40,13 @@ def get_smart_coach(knowledge_base,persona_name="Wealth Architect"):
         search_knowledge=True,
         read_chat_history=False,
         delegate_to_all_members=True,
-        members=[auditor_agent, forecaster_agent,visual_analyst_agent],
-        tools=[generate_spending_chart],
+        members=[auditor_agent, forecaster_agent],
         instructions=[
-            f"Adhere strictly to this Persona: {persona_name}, {persona_prompts.get(persona_name)}",
+            f"ACT AS THE {persona_name} PERSONA. Every word you speak must reflect this identity. {persona_prompts.get(persona_name)}",
             "STEP 1: Auditor extracts 3-6 months of transactions from Knowledge Base.",
             "STEP 2: Visual Analyst generates the Essential vs Non-Essential PIE CHART.",
             "STEP 3: Forecaster calculates the gap for the user's specific goal.",
-            "STEP 4: Visual Analyst generates the Savings Trajectory BAR CHART.",
-            "STEP 5: Synthesize a final deep analysis in your assigned Persona voice."
+            "STEP 4: Synthesize a final deep analysis in your assigned Persona voice."
         ],
         markdown=True,
     )
