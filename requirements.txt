@@ -9,4 +9,4 @@ lancedb
 huggingface_hub
 sentence-transformers
 aiofiles
-google-genai
+pdfplumber
