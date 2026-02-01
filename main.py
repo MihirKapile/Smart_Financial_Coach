@@ -24,6 +24,7 @@ uploaded_file = st.file_uploader(
 # --- User inputs ---
 goal_amount = st.number_input("Set your financial goal amount ($)", value=3000.0)
 goal_months = st.number_input("Timeframe to reach goal (months)", value=6, min_value=1)
+monthly_salary = st.number_input("Enter your monthly salary ($)", value=3000.0)
 
 voices = {
     "Conservative Advisor": "Focus on savings, avoid unnecessary spending, highlight risks.",
@@ -32,7 +33,9 @@ voices = {
 }
 selected_voice = st.selectbox("Choose Advisor Voice", list(voices.keys()))
 
-if uploaded_file:
+# --- Trigger button ---
+if uploaded_file and st.button("Generate Insights"):
+
     # --- Read file ---
     try:
         if uploaded_file.name.endswith(".csv"):
@@ -49,20 +52,31 @@ if uploaded_file:
     amount_col = next((c for c in column_names if "amount" in c.lower()), None)
     category_col = next((c for c in column_names if "category" in c.lower() or "merchant" in c.lower()), None)
 
-    # If any column not detected, pass all columns and let LLM handle it
-    if not all([date_col, amount_col, category_col]):
-        st.warning("Could not auto-detect all key columns. Passing full data to LLM for analysis.")
-        df_to_send = df
-    else:
-        # --- Ensure correct types ---
+    # --- Data cleaning ---
+    if date_col:
         df[date_col] = pd.to_datetime(df[date_col], errors='coerce')
+    if amount_col:
         df[amount_col] = pd.to_numeric(df[amount_col], errors="coerce")
-        df = df.dropna(subset=[amount_col, category_col])
+    df = df.dropna(subset=[amount_col, category_col])
 
-        # --- Filter recent 30–60 days ---
-        recent_days = st.slider("Select recent days of data to analyze", min_value=30, max_value=60, value=30)
+    # --- Filter recent days ---
+    recent_days = st.slider("Select recent days of data to analyze", min_value=30, max_value=60, value=30)
+    if date_col:
         cutoff_date = datetime.now() - timedelta(days=recent_days)
         df_to_send = df[df[date_col] >= cutoff_date]
+    else:
+        df_to_send = df
+
+    # --- Spending per category graph ---
+    st.subheader("Spending per Category")
+    category_summary = df_to_send.groupby(category_col)[amount_col].sum().sort_values(ascending=False)
+    st.bar_chart(category_summary)
+
+    # --- Spending over time graph ---
+    if date_col:
+        st.subheader("Spending Over Time")
+        df_time = df_to_send.groupby(date_col)[amount_col].sum().sort_index()
+        st.line_chart(df_time)
 
     # --- LLM Agent: Full Financial Advisor ---
     financial_agent = Agent(
@@ -78,7 +92,7 @@ Step 3: Analyze spending:
     - Top 3 spending categories
     - Most expensive months
 Step 4: Forecast goal progress:
-    - Average savings
+    - Average savings (consider monthly salary: ${monthly_salary})
     - Total savings
     - Are they on track to meet the goal of ${goal_amount} in {goal_months} months?
 Step 5: Detect recurring subscriptions and gray charges (forgotten free trials, mystery charges).
@@ -92,9 +106,13 @@ Respond in Markdown format.
     report = financial_agent.run({
         "transactions": df_to_send.to_dict(orient="records"),
         "goal_amount": goal_amount,
-        "goal_months": goal_months
+        "goal_months": goal_months,
+        "monthly_salary": monthly_salary
     })
 
     # --- Display final report ---
     st.subheader("AI Advisor Insights")
-    st.markdown(report.content)
+    if hasattr(report, "content"):
+        st.markdown(report.content)
+    else:
+        st.markdown(report)
