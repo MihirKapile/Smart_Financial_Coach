@@ -1,12 +1,7 @@
-agno
-groq
 streamlit
 pandas
-plotly
+openpyxl
+agno
+groq
 python-dotenv
-pypdf2
-lancedb
-huggingface_hub
-sentence-transformers
-aiofiles
-pdfplumber
+fpdf
