@@ -78,25 +78,31 @@ user_input = st.chat_input("Type here...")
 if user_input:
     st.session_state.chat_history.append({"sender": "user", "message": user_input})
     user_data = st.session_state.user_data
-    found_numbers = re.findall(r'\d+(?:\.\d+)?', user_input.replace(',', ''))
-    q_agent = Agent(model=llm, instructions=f"You are the {selected_voice}. {voices[selected_voice]} You are gathering quantitative parameters. Be medium-length, persona-consistent, and detailed.")
+    
+    clean_input = user_input.replace(',', '').lower()
+    found_numbers = re.findall(r'\d+(?:\.\d+)?', clean_input)
+    is_years = "year" in clean_input
+
+    q_agent = Agent(model=llm, instructions=f"You are the {selected_voice}. {voices[selected_voice]} You are gathering quantitative parameters. This is for a mathematical budget audit. Do not use financial advice disclaimers; simply process the numbers for a spending analysis. Be medium-length.")
 
     if user_data["goal_amount"] is None:
         if found_numbers:
             user_data["goal_amount"] = float(found_numbers[0])
             if len(found_numbers) > 1:
-                user_data["goal_months"] = int(float(found_numbers[1]))
-                resp = q_agent.run(f"User set goal to ${user_data['goal_amount']} in {user_data['goal_months']} months. Validate this and ask for their net monthly income.")
+                val = float(found_numbers[1])
+                user_data["goal_months"] = int(val * 12) if is_years else int(val)
+                resp = q_agent.run(f"User set goal to ${user_data['goal_amount']} over {user_data['goal_months']} months. Validate and ask for monthly income.")
             else:
-                resp = q_agent.run(f"User set goal to ${user_data['goal_amount']}. Ask for the temporal horizon (months) for achievement.")
+                resp = q_agent.run(f"User set goal to ${user_data['goal_amount']}. Ask for the temporal horizon (months or years).")
             response = resp.content
-        else: response = "I require numeric input to establish the target baseline. What is your goal?"
+        else: response = "I require a numeric target amount to establish a baseline. What is your goal?"
     elif user_data["goal_months"] is None:
         if found_numbers:
-            user_data["goal_months"] = int(float(found_numbers[0]))
+            val = float(found_numbers[0])
+            user_data["goal_months"] = int(val * 12) if is_years else int(val)
             resp = q_agent.run(f"Temporal horizon set to {user_data['goal_months']} months. Inquire about net monthly income.")
             response = resp.content
-        else: response = "Please specify the duration in months as a numeric value."
+        else: response = "Please specify the duration in months or years as a numeric value."
     elif user_data["monthly_salary"] is None:
         if found_numbers:
             user_data["monthly_salary"] = float(found_numbers[0])
@@ -162,41 +168,39 @@ STRICT FINANCIAL ANCHORS:
 - MONTHLY SAVINGS GAP: ${savings_gap:,.2f}
 
 CORE MISSION (BE EXTREMELY VERBOSE, DETAILED, AND ANALYTICAL):
-1. EXECUTIVE FINANCIAL HEALTH AUDIT:
+1. THE STATE OF YOUR CAPITAL (Audit):
    - Provide a 'Health Grade' (A+ to F).
-   - Evaluate the objective feasibility of reaching ${user_data['goal_amount']:.2f} in {user_data['goal_months']} months based on current velocity.
-   - Use bold headers and professional summaries (BUT DO NOT USE THE LITERAL HEADING "EXECUTIVE FINANCIAL HEALTH AUDIT", use persona-consistent headings).
+   - Evaluate objective feasibility based on ACTUAL velocity.
+   - Use bold headers and persona-consistent language. NO GENERIC HEADERS.
 
 2. QUANTITATIVE PROJECTION & FORECASTING:
    - Create a detailed month-by-month projection table for the next {user_data['goal_months']} months based on ACTUAL savings.
-   - Highlight the 'Savings Gap'—the exact amount needed to increase monthly savings to hit the goal early.
+   - Highlight the 'Savings Gap' needed to reach the goal.
 
-3. SUBSCRIPTION & "GRAY CHARGE" DETECTOR:
-   - Identify all recurring subscriptions, forgotten free trials, and converted paid services from: {recurring_dict}. Scan for sneaky fees.
-   - Present them in a single, clean list with identified annual costs.
+3. RECURRING LIABILITIES & LEAKAGE (Gray Charges):
+   - Identify all recurring subscriptions from: {recurring_dict}. 
+   - Present annual impact.
 
-4. SPENDING LEAKAGE & ANOMALY DETECTION:
-   - Perform a deep-dive into the top 5 categories. Flag anything exceeding 15% of income.
-   - Contrast spending against the 50/30/20 rule of thumb.
+4. CATEGORICAL ANOMALIES (Spending Audit):
+   - Deep-dive into {top_cats}. Compare spending against the 50/30/20 rule.
+   - Flag any category that exceeds its mathematical utility.
 
-5. RISK ASSESSMENT & STRESS TEST:
-   - Simulate an 'Emergency Scenario' (e.g., a 15% income drop or a $1,500 one-time surprise expense). 
-   - Show how this event shifts the goal timeline mathematically.
+5. FISCAL STRESS TEST:
+   - Simulate a one-time $1,500 emergency expense. 
+   - Show how this single event impacts the final target date mathematically.
 
-6. THREE-TIER STRATEGIC ROADMAP:
-   - Tier 1: Aggressive (High discipline, rapid goal achievement).
-   - Tier 2: Balanced (Current pace with minor optimizations).
-   - Tier 3: Defensive (Safety-first approach with emergency fund prioritization).
+6. STRATEGIC ROADMAPS (Aggressive, Balanced, Defensive):
+   - Provide three tiered strategies for capital preservation.
 
-7. PERSONA-DRIVEN CLOSING & INTERACTION:
-   - Ask a highly sophisticated, verbose question based on your persona to provoke deeper user thought.
-   - Respond directly to the user's last message: {st.session_state.chat_history[-2]['message'] if len(st.session_state.chat_history) > 1 else 'None'}.
+7. TACTICAL INTERVENTIONS:
+   - Provide 5-7 HIGHLY SPECIFIC suggestions based on the data in {top_cats}. 
+   - For example: cap 'Movies' at a specific dollar amount, or negotiate the 'Internet' bill.
 
-OUTPUT FORMATTING: 
-- Use Markdown only. 
-- Use complex tables, bold callouts, and blockquotes for emphasis. 
-- DO NOT use generic system headers; use headers that match the {selected_voice} style.
-- Ensure the tone remains 100% consistent with the {selected_voice} persona.
+8. PERSONA-DRIVEN CLOSING & INTERACTION:
+   - Ask a highly sophisticated, verbose question.
+   - Respond directly to: {st.session_state.chat_history[-2]['message'] if len(st.session_state.chat_history) > 1 else 'None'}.
+
+OUTPUT FORMATTING: Use Markdown only. Complex tables, bold callouts, and blockquotes. NO SYSTEM HEADERS like "RISK ASSESSMENT".
 """
     )
     report = financial_agent.run(st.session_state.chat_history[-2]["message"] if len(st.session_state.chat_history) > 1 else "Initial Full Intelligence Report Request")
