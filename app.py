@@ -12,9 +12,6 @@ if "kb" not in st.session_state:
 # --- Sidebar ---
 with st.sidebar:
     st.title("⚙️ Settings")
-    api_key = st.text_input("Groq API Key", type="password")
-    if api_key:
-        os.environ["GROQ_API_KEY"] = api_key
     
     persona = st.selectbox("Choose Persona", ["Tough Love", "Wealth Architect", "Bestie"])
     
@@ -28,7 +25,7 @@ with st.sidebar:
 
 st.title("💸 AI Smart Financial Coach")
 
-if uploaded_file and api_key:
+if uploaded_file:
     temp_dir = "tmp/uploads"
     os.makedirs(temp_dir, exist_ok=True)
     file_path = os.path.join(temp_dir, uploaded_file.name)
@@ -46,13 +43,15 @@ if uploaded_file and api_key:
         coach = get_smart_coach(st.session_state.kb, persona)
         
         with st.status("The AI Team is collaborating...", expanded=True) as status:
-            query = (
-                f"Analyze my data. Can I save ${target} in {months} months? "
-                "List all subscriptions and point out any spending anomalies."
-            )
+            query = f"""
+            I need a deep financial audit. 
+            1. Delegate to the Auditor to find my transactions.
+            2. Delegate to the Visual Analyst to generate a PIE CHART of Essential vs Non-Essential spending.
+            3. Verdict on my goal of ${target} in {months} months.
+            """
             response = coach.run(query)
             status.update(label="Audit Complete!", state="complete")
         
         st.markdown(response.content)
 else:
-    st.info("Please provide your API Key and upload a file to start.")
+    st.info("Please upload a file to start.")

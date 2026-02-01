@@ -1,5 +1,7 @@
 from agno.agent import Agent
 from agno.models.groq import Groq
+from dotenv import load_dotenv
+load_dotenv()
 
 def get_forecaster_agent():
     return Agent(

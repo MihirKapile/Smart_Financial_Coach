@@ -1,11 +1,14 @@
 from agno.agent import Agent
 from agno.team import Team
 from agno.models.groq import Groq
+from agno.models.google import Gemini
 from agents.auditor import get_auditor_agent
 from agents.forecaster import get_forecaster_agent
 from tools.knowledge import get_knowledge_base
 from tools.visualizer import generate_spending_chart
-
+from agents.visual_analyst import get_visual_analyst_agent
+from dotenv import load_dotenv
+load_dotenv()
 def get_smart_coach(knowledge_base,persona_name="Wealth Architect"):
     """
     Orchestrates the specialist agents and applies the behavioral persona.
@@ -30,40 +33,24 @@ def get_smart_coach(knowledge_base,persona_name="Wealth Architect"):
 
     auditor_agent = get_auditor_agent()
     forecaster_agent = get_forecaster_agent()
+    visual_analyst_agent = get_visual_analyst_agent()
 
     return Team(
         name="Lead Coach Orchestrator",
-        model=Groq(id="llama-3.1-8b-instant"),
+        model=Groq(id="llama-3.3-70b-versatile"),
         knowledge=knowledge_base,
         search_knowledge=True,
         read_chat_history=False,
-        members=[auditor_agent, forecaster_agent],
-        tools=[generate_spending_chart],
         delegate_to_all_members=True,
+        members=[auditor_agent, forecaster_agent,visual_analyst_agent],
+        tools=[generate_spending_chart],
         instructions=[
-    f"Persona: {persona_name}, {persona_prompts.get(persona_name, 'Wealth Architect')}",
-    "1. INITIAL DATA MINING: Search the Knowledge Base for the user's last 3-6 months of transactions.",
-    
-    "2. SPENDING CATEGORIZATION & VISUALIZATION:",
-    "   - Summarize total spending by category (e.g., Housing, Food, Entertainment, Subscriptions).",
-    "   - MANDATORY: Call 'generate_spending_chart' with a list of category-amount pairs to visualize the macro-budget.",
-    
-    "3. SUBSCRIPTION & GRAY CHARGE AUDIT:",
-    "   - Identify recurring payments (Netflix, Gym, etc.) and 'Gray Charges' (unused trials or hidden fees).",
-    "   - Provide a Markdown table of these costs and calculate their annual impact.",
-    
-    "4. GOAL FEASIBILITY & MATHEMATICAL FORECASTING:",
-    "   - Perform a Gap Analysis: Calculate Required Monthly Savings vs. Current Monthly Surplus.",
-    "   - Provide a 'Yes/No' verdict on saving ${goal_amount} in {months} months.",
-    "   - MANDATORY: Call 'generate_spending_chart' using a 'bar' type to compare 'Current Savings' vs 'Target Savings' trajectory.",
-    
-    "5. BEHAVIORAL DEEP DIVE:",
-    "   - Identify one spending anomaly (e.g., 'You spend 30% more on Friday nights').",
-    "   - Call out this behavioral pattern in your persona's voice.",
-    
-    "6. FINAL ACTION PLAN:",
-    "   - Give exactly 3 specific, actionable 'Cuts' to bridge the savings gap.",
-    "   - End with a single 'Power Move' the user can do in the next 10 minutes to save money."
-],
-        markdown=True
+            f"Adhere strictly to this Persona: {persona_name}, {persona_prompts.get(persona_name)}",
+            "STEP 1: Auditor extracts 3-6 months of transactions from Knowledge Base.",
+            "STEP 2: Visual Analyst generates the Essential vs Non-Essential PIE CHART.",
+            "STEP 3: Forecaster calculates the gap for the user's specific goal.",
+            "STEP 4: Visual Analyst generates the Savings Trajectory BAR CHART.",
+            "STEP 5: Synthesize a final deep analysis in your assigned Persona voice."
+        ],
+        markdown=True,
     )
