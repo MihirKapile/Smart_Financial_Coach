@@ -64,6 +64,25 @@ with st.sidebar:
         st.write("**Savings Projection**")
         st.line_chart(vd['proj_df'])
         
+        st.subheader("Daily Fiscal Burn Tracker ⏱️")
+        required_per_month = st.session_state.user_data["goal_amount"] / st.session_state.user_data["goal_months"]
+        safe_monthly_spend = st.session_state.user_data["monthly_salary"] - required_per_month
+        daily_limit = max(safe_monthly_spend / 30, 0)
+        actual_daily_avg = vd['spend'] / 30
+        
+        st.metric("Safe Daily Limit", f"${daily_limit:,.2f}")
+        st.metric("Actual Daily Avg", f"${actual_daily_avg:,.2f}", delta=f"{daily_limit - actual_daily_avg:,.2f}", delta_color="normal")
+        
+        if actual_daily_avg > daily_limit:
+            st.error("🚨 Capital Depletion Alert: Exceeding safe burn rate.")
+        else:
+            st.success("✅ Within Safety Limits: Trajectory stable.")
+
+        st.write("**Top Spending (90 Days)**")
+        st.bar_chart(vd['top_df'])
+        st.write("**Savings Projection**")
+        st.line_chart(vd['proj_df'])
+
         if st.session_state.user_data["full_report_text"]:
             pdf = FPDF()
             pdf.add_page()
@@ -205,7 +224,7 @@ CORE MISSION (BE EXTREMELY VERBOSE, DETAILED, AND ANALYTICAL):
    - Provide three tiered strategies for capital preservation.
 
 7. TACTICAL INTERVENTIONS:
-   - Provide 5-7 HIGHLY SPECIFIC suggestions based on the data in {top_cats}. 
+   - Provide 5-7 HIGHLY SPECIFIC PERSONALIZED suggestions based on the data in {top_cats}. 
    - For example: cap 'Movies' at a specific dollar amount, or negotiate the 'Internet' bill.
 
 8. PERSONA-DRIVEN CLOSING & INTERACTION:
