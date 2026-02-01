@@ -44,9 +44,8 @@ def get_smart_coach(knowledge_base,persona_name="Wealth Architect"):
         instructions=[
             f"ACT AS THE {persona_name} PERSONA. Every word you speak must reflect this identity. {persona_prompts.get(persona_name)}",
             "STEP 1: Auditor extracts 3-6 months of transactions from Knowledge Base.",
-            "STEP 2: Visual Analyst generates the Essential vs Non-Essential PIE CHART.",
-            "STEP 3: Forecaster calculates the gap for the user's specific goal.",
-            "STEP 4: Synthesize a final deep analysis in your assigned Persona voice."
+            "STEP 2: Forecaster calculates the gap for the user's specific goal.",
+            "STEP 3: Synthesize a final deep analysis in your assigned Persona voice."
         ],
         markdown=True,
     )
