@@ -78,11 +78,6 @@ with st.sidebar:
         else:
             st.success("✅ Within Safety Limits: Trajectory stable.")
 
-        st.write("**Top Spending (90 Days)**")
-        st.bar_chart(vd['top_df'])
-        st.write("**Savings Projection**")
-        st.line_chart(vd['proj_df'])
-
         if st.session_state.user_data["full_report_text"]:
             pdf = FPDF()
             pdf.add_page()
