@@ -1,4 +1,12 @@
-# Elite Financial Intelligence Coach 💬
+# Smart Financial Intelligence Coach 💬
+
+**Live Demo & Resources**
+
+* **Live Demo Website:** [https://smart-financial-coach.streamlit.app/](https://smart-financial-coach.streamlit.app/)
+* **Demo Video:** Watch HERE [https://www.youtube.com/watch?v=A1lUmeAwg5Q](https://www.youtube.com/watch?v=A1lUmeAwg5Q)
+* **Project Presentation (PPTX)** and **Documentation PDF** are included in the GitHub repository.
+
+
 
 An AI-powered personal finance analysis and coaching application built with Streamlit, Groq LLMs, and Agno Agents. The app ingests raw transaction files (CSV/XLSX), analyzes real spending behavior, and produces an in-depth, persona-driven financial intelligence report with visual dashboards and a downloadable audit PDF.
 
