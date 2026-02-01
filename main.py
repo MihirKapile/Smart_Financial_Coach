@@ -82,13 +82,19 @@ if uploaded_file and st.button("Generate Insights"):
     else:
         df_recent = df
 
-    # --- Structured analysis ---
-    total_spent = df_recent[amount_col].sum()
-    net_income = monthly_salary - total_spent
-    monthly_savings = max(net_income, 0)
-    months_to_goal = max(goal_amount / monthly_savings if monthly_savings > 0 else float('inf'), 0)
+    # --- Monthly Spending Calculation ---
+    if date_col:
+        df_recent['month'] = df_recent[date_col].dt.to_period('M')
+        monthly_spending = df_recent.groupby('month')[amount_col].sum().mean()
+    else:
+        monthly_spending = df_recent[amount_col].sum() / (recent_days/30)
 
-    # Detect recurring subscriptions (same description & amount >1 time)
+    monthly_savings = max(monthly_salary - monthly_spending, 0)
+    months_to_goal = goal_amount / monthly_savings if monthly_savings > 0 else float('inf')
+    savings_rate = monthly_savings / monthly_salary * 100
+    total_spent = df_recent[amount_col].sum()
+
+    # Detect recurring subscriptions
     recurring = df_recent.groupby([category_col, amount_col]).size().reset_index(name='count')
     recurring = recurring[recurring['count'] > 1]
 
@@ -151,19 +157,43 @@ You are a {selected_voice} financial advisor.
 
 You have received structured analysis data:
 - Total spent in last {recent_days} days: ${total_spent:.2f}
+- Average monthly spending: ${monthly_spending:.2f}
 - Monthly salary: ${monthly_salary:.2f}
-- Monthly savings: ${monthly_savings:.2f}
+- Monthly savings: ${monthly_savings:.2f} ({savings_rate:.1f}% savings rate)
 - Goal amount: ${goal_amount:.2f}
 - Months to reach goal at current savings: {months_to_goal:.1f} months
-- Top categories: {top_categories.to_dict()}
-- Recurring subscriptions: {recurring.to_dict()}
+- Top categories (with spending amounts): {top_categories.to_dict()}
+- Recurring subscriptions (description, amount, count): {recurring.to_dict()}
 
-Your task:
-- Generate a **persona-driven, natural flowing report** based on this structured data.
-- Explain goal progress clearly and whether user is on track.
-- Provide actionable tips matching the persona.
-- Include encouraging, motivating commentary.
-- Respond strictly in Markdown format.
+Your task is to generate an **in-depth, persona-driven financial report**. Include the following sections:
+
+1. **Summary of Financial Health**
+   - Evaluate savings vs salary
+   - Explain if user is on track to reach goal
+   - Provide overall assessment
+
+2. **Category-wise Spending Analysis**
+   - Highlight top 5 spending categories
+   - Point out overspending or optimization opportunities
+   - Explain trends or anomalies
+
+3. **Recurring Expenses Insight**
+   - Identify recurring subscriptions that can be reduced
+   - Suggest savings if adjustments are made
+
+4. **Trends & Forecasting**
+   - Compare recent spending vs average
+   - Predict time to reach goal
+   - Include "what-if" scenarios if user saves more or reduces subscriptions
+
+5. **Actionable Recommendations**
+   - Clear, persona-tailored tips
+
+6. **Encouragement & Motivation**
+   - Positive reinforcement
+   - Suggest milestones and fun tips
+
+Respond strictly in **Markdown**, include tables, bullet points, percentages, and persona-consistent commentary.
 """
     )
 
