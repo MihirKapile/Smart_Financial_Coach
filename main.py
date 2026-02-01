@@ -26,11 +26,25 @@ goal_amount = st.number_input("Set your financial goal amount ($)", value=3000.0
 goal_months = st.number_input("Timeframe to reach goal (months)", value=6, min_value=1)
 monthly_salary = st.number_input("Enter your monthly salary ($)", value=3000.0)
 
+# --- Persona definitions ---
 voices = {
-    "Conservative Advisor": "Focus on savings, avoid unnecessary spending, highlight risks.",
-    "Fun Saver": "Encourage small treats, fun spending, but note where to save.",
-    "Analytical Guru": "Give data-driven breakdowns, highlight patterns, anomalies, and trends."
+    "Conservative Advisor": """
+Focus on safety and long-term planning. Highlight risks and ways to save rigorously.
+Give advice in a formal, cautious tone. Emphasize security over fun spending.
+Use professional and serious language.
+""",
+    "Fun Saver": """
+Encourage fun, small treats, and enjoyment while saving. Be playful and cheerful.
+Give actionable advice in a friendly, motivational, and lighthearted tone.
+Use jokes, fun analogies, or playful comments when appropriate.
+""",
+    "Analytical Guru": """
+Give data-driven insights and patterns. Focus on numbers, trends, and anomalies.
+Use charts, percentages, and comparisons in your explanations.
+Be precise, analytical, and professional in tone.
+"""
 }
+
 selected_voice = st.selectbox("Choose Advisor Voice", list(voices.keys()))
 
 # --- Trigger button ---
@@ -78,37 +92,43 @@ if uploaded_file and st.button("Generate Insights"):
         df_time = df_to_send.groupby(date_col)[amount_col].sum().sort_index()
         st.line_chart(df_time)
 
-    # --- LLM Agent: Full Financial Advisor ---
+    # --- LLM Agent: Full Financial Advisor with persona ---
     financial_agent = Agent(
         name="Full Financial Advisor",
         model=llm,
         instructions=f"""
-You are a {selected_voice} financial advisor.
-You receive transaction data in any CSV/Excel structure.
-Step 1: Detect key columns (date, amount, category), even if names are unconventional.
-Step 2: Clean the data (handle empty rows/columns, invalid amounts, messy data).
-Step 3: Analyze spending:
-    - Monthly average spending
-    - Top 3 spending categories
-    - Most expensive months
-Step 4: Forecast goal progress:
-    - Average savings (consider monthly salary: ${monthly_salary})
-    - Total savings
-    - Are they on track to meet the goal of ${goal_amount} in {goal_months} months?
-Step 5: Detect recurring subscriptions and gray charges (forgotten free trials, mystery charges).
-Step 6: Generate actionable advice in a fun, friendly, readable tone.
-Step 7: Present a cohesive report in Markdown with headings, bullet points, and numbers.
-Respond in Markdown format.
-"""
+    You are a {selected_voice} financial advisor.
+    {voices[selected_voice]}
+
+    You have received the following transaction data (recent {recent_days} days):
+    {df_to_send.to_dict(orient='records')}
+
+    Financial Goal: Save ${goal_amount} in {goal_months} months
+    Monthly Salary: ${monthly_salary}
+
+    Your task:
+    - Analyze the data and provide insights (spending, top categories, most expensive months, recurring subscriptions, grey charges, goal progress, savings tips)
+    - Generate actionable advice **in the selected persona voice**
+    - Do NOT include internal step numbers (Step 1, Step 2, etc.) in the final report
+    - Present a **cohesive, flowing Markdown report** that reads like a friendly report
+    - Include headings, bullet points, and numbers where appropriate, but keep it smooth
+    - Make the tone match the persona:
+        - Fun Saver → playful, cheerful, motivating
+        - Conservative Advisor → formal, cautious, risk-aware
+        - Analytical Guru → precise, data-driven, analytical
+    - Respond strictly in Markdown
+
+    Example of flow:
+    - Start with a friendly introduction
+    - Summarize key data insights naturally
+    - Give actionable tips/advice in persona style
+    - End with encouragement/recommendation
+    """
     )
 
+
     # --- Run agent ---
-    report = financial_agent.run({
-        "transactions": df_to_send.to_dict(orient="records"),
-        "goal_amount": goal_amount,
-        "goal_months": goal_months,
-        "monthly_salary": monthly_salary
-    })
+    report = financial_agent.run({})
 
     # --- Display final report ---
     st.subheader("AI Advisor Insights")
