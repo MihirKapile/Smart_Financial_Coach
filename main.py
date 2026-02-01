@@ -74,21 +74,33 @@ if uploaded_file and st.button("Generate Insights"):
         df[amount_col] = pd.to_numeric(df[amount_col], errors="coerce")
     df = df.dropna(subset=[amount_col, category_col])
 
-    # --- Filter recent days ---
+    # --- Filter last 60 days ---
     recent_days = 60
     if date_col:
         cutoff_date = datetime.now() - timedelta(days=recent_days)
-        df_to_send = df[df[date_col] >= cutoff_date]
+        df_recent = df[df[date_col] >= cutoff_date]
     else:
-        df_to_send = df
+        df_recent = df
+
+    # --- Structured analysis ---
+    total_spent = df_recent[amount_col].sum()
+    net_income = monthly_salary - total_spent
+    monthly_savings = max(net_income, 0)
+    months_to_goal = max(goal_amount / monthly_savings if monthly_savings > 0 else float('inf'), 0)
+
+    # Detect recurring subscriptions (same description & amount >1 time)
+    recurring = df_recent.groupby([category_col, amount_col]).size().reset_index(name='count')
+    recurring = recurring[recurring['count'] > 1]
+
+    # Detect top categories
+    top_categories = df_recent.groupby(category_col)[amount_col].sum().sort_values(ascending=False).head(5)
 
     # --- Persona-aware Spending per Category graph ---
     st.subheader("Spending per Category")
-    category_summary = df_to_send.groupby(category_col)[amount_col].sum().reset_index()
+    category_summary = df_recent.groupby(category_col)[amount_col].sum().reset_index()
     max_spent = category_summary[amount_col].max()
 
     if selected_voice == "Fun Saver":
-        # Add emoji to top 3 categories
         category_summary['label'] = category_summary.apply(
             lambda row: f"{row[category_col]} {'💸' if row[amount_col] >= max_spent*0.7 else ''}", axis=1
         )
@@ -98,10 +110,9 @@ if uploaded_file and st.button("Generate Insights"):
             tooltip=[category_col, amount_col]
         )
     elif selected_voice == "Conservative Advisor":
-        # Highlight categories >30% of total as red
-        total_spent = category_summary[amount_col].sum()
+        total_spent_sum = category_summary[amount_col].sum()
         category_summary['color'] = category_summary[amount_col].apply(
-            lambda x: 'red' if x/total_spent >= 0.3 else 'steelblue'
+            lambda x: 'red' if x/total_spent_sum >= 0.3 else 'steelblue'
         )
         chart = alt.Chart(category_summary).mark_bar().encode(
             x=alt.X(f'{category_col}:N', sort='-y', title='Category'),
@@ -109,7 +120,7 @@ if uploaded_file and st.button("Generate Insights"):
             color=alt.Color('color:N', scale=None),
             tooltip=[category_col, amount_col]
         )
-    else:  # Analytical Guru
+    else:
         category_summary['percent'] = category_summary[amount_col] / category_summary[amount_col].sum() * 100
         chart = alt.Chart(category_summary).mark_bar(color='#4E79A7').encode(
             x=alt.X(f'{category_col}:N', sort='-y', title='Category'),
@@ -119,36 +130,18 @@ if uploaded_file and st.button("Generate Insights"):
 
     st.altair_chart(chart, use_container_width=True)
 
-    # --- Persona-aware Spending over Time graph ---
+    # --- Persona-aware Spending Over Time ---
     if date_col:
         st.subheader("Spending Over Time")
-        df_time = df_to_send.groupby(date_col)[amount_col].sum().reset_index()
-
-        if selected_voice == "Fun Saver":
-            chart_time = alt.Chart(df_time).mark_line(color='#FF6F61', point=True).encode(
-                x=alt.X(f'{date_col}:T', title='Date'),
-                y=alt.Y(f'{amount_col}:Q', title='Total Spent ($)'),
-                tooltip=[date_col, amount_col]
-            )
-        elif selected_voice == "Conservative Advisor":
-            avg_spent = df_time[amount_col].mean()
-            chart_time = alt.Chart(df_time).mark_line(color='steelblue').encode(
-                x=alt.X(f'{date_col}:T', title='Date'),
-                y=alt.Y(f'{amount_col}:Q', title='Total Spent ($)'),
-                tooltip=[date_col, amount_col]
-            ) + alt.Chart(df_time).mark_rule(color='red', strokeDash=[5,5]).encode(
-                y=alt.value(avg_spent),
-                tooltip=alt.TooltipValue(f"Average: ${avg_spent:.2f}")
-            )
-        else:  # Analytical Guru
-            chart_time = alt.Chart(df_time).mark_line(color='#4E79A7').encode(
-                x=alt.X(f'{date_col}:T', title='Date'),
-                y=alt.Y(f'{amount_col}:Q', title='Total Spent ($)'),
-                tooltip=[date_col, amount_col]
-            )
+        df_time = df_recent.groupby(date_col)[amount_col].sum().reset_index()
+        chart_time = alt.Chart(df_time).mark_line(point=True).encode(
+            x=alt.X(f'{date_col}:T', title='Date'),
+            y=alt.Y(f'{amount_col}:Q', title='Total Spent ($)'),
+            tooltip=[date_col, amount_col]
+        )
         st.altair_chart(chart_time, use_container_width=True)
 
-    # --- LLM Agent: Full Financial Advisor with persona and natural flow ---
+    # --- LLM Persona Agent: Structured Analysis + Persona Narrative ---
     financial_agent = Agent(
         name="Full Financial Advisor",
         model=llm,
@@ -156,29 +149,26 @@ if uploaded_file and st.button("Generate Insights"):
 You are a {selected_voice} financial advisor.
 {voices[selected_voice]}
 
-You have received the following transaction data (recent {recent_days} days):
-{df_to_send.to_dict(orient='records')}
-
-Financial Goal: Save ${goal_amount} in {goal_months} months
-Monthly Salary: ${monthly_salary}
+You have received structured analysis data:
+- Total spent in last {recent_days} days: ${total_spent:.2f}
+- Monthly salary: ${monthly_salary:.2f}
+- Monthly savings: ${monthly_savings:.2f}
+- Goal amount: ${goal_amount:.2f}
+- Months to reach goal at current savings: {months_to_goal:.1f} months
+- Top categories: {top_categories.to_dict()}
+- Recurring subscriptions: {recurring.to_dict()}
 
 Your task:
-- Analyze the data and provide insights: spending, top categories, most expensive months, recurring subscriptions, grey charges, goal progress, savings tips
-- Generate actionable advice in persona voice
-- DO NOT include internal step numbers in the final report
-- Present a cohesive, flowing Markdown report
-- Make tone match the persona:
-    - Fun Saver → playful, cheerful, motivating
-    - Conservative Advisor → formal, cautious, risk-aware
-    - Analytical Guru → precise, data-driven, analytical
-- Respond strictly in Markdown
+- Generate a **persona-driven, natural flowing report** based on this structured data.
+- Explain goal progress clearly and whether user is on track.
+- Provide actionable tips matching the persona.
+- Include encouraging, motivating commentary.
+- Respond strictly in Markdown format.
 """
     )
 
-    # --- Run agent ---
     report = financial_agent.run({})
 
-    # --- Display final report ---
     st.subheader("AI Advisor Insights")
     if hasattr(report, "content"):
         st.markdown(report.content)
