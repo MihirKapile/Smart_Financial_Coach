@@ -83,7 +83,7 @@ No database or backend services required.
 
 ```
 git clone https://github.com/MihirKapile/Smart_Financial_Coach.git
-cd smart-financial-coach
+cd Smart_Financial_Coach
 ```
 
 ### 2. Create Virtual Environment
