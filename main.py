@@ -66,6 +66,7 @@ if uploaded_file and st.button("Generate Insights"):
     date_col = next((c for c in column_names if "date" in c.lower()), None)
     amount_col = next((c for c in column_names if "amount" in c.lower()), None)
     category_col = next((c for c in column_names if "category" in c.lower() or "merchant" in c.lower()), None)
+    description_col = next((c for c in column_names if "description" in c.lower()), None)
 
     # --- Data cleaning ---
     if date_col:
@@ -90,15 +91,19 @@ if uploaded_file and st.button("Generate Insights"):
         monthly_spending = df_recent[amount_col].sum() / (recent_days/30)
 
     monthly_savings = max(monthly_salary - monthly_spending, 0)
-    months_to_goal = goal_amount / monthly_savings if monthly_savings > 0 else float('inf')
     savings_rate = monthly_savings / monthly_salary * 100
     total_spent = df_recent[amount_col].sum()
 
-    # Detect recurring subscriptions
+    # --- Recurring and "Gray Charges" Detection ---
     recurring = df_recent.groupby([category_col, amount_col]).size().reset_index(name='count')
     recurring = recurring[recurring['count'] > 1]
 
-    # Detect top categories
+    # Optional: detect suspicious low-frequency charges that might be forgotten subscriptions
+    gray_charges = df_recent[df_recent[amount_col] < monthly_salary*0.05]  # small charges
+    gray_charges = gray_charges.groupby([category_col, amount_col]).size().reset_index(name='count')
+    gray_charges = gray_charges[gray_charges['count'] > 1]
+
+    # --- Top Categories ---
     top_categories = df_recent.groupby(category_col)[amount_col].sum().sort_values(ascending=False).head(5)
 
     # --- Persona-aware Spending per Category graph ---
@@ -147,7 +152,7 @@ if uploaded_file and st.button("Generate Insights"):
         )
         st.altair_chart(chart_time, use_container_width=True)
 
-    # --- LLM Persona Agent: Structured Analysis + Persona Narrative ---
+    # --- LLM Persona Agent: Full Personalized Analysis ---
     financial_agent = Agent(
         name="Full Financial Advisor",
         model=llm,
@@ -155,45 +160,40 @@ if uploaded_file and st.button("Generate Insights"):
 You are a {selected_voice} financial advisor.
 {voices[selected_voice]}
 
-You have received structured analysis data:
+You have the following structured data:
 - Total spent in last {recent_days} days: ${total_spent:.2f}
 - Average monthly spending: ${monthly_spending:.2f}
 - Monthly salary: ${monthly_salary:.2f}
 - Monthly savings: ${monthly_savings:.2f} ({savings_rate:.1f}% savings rate)
 - Goal amount: ${goal_amount:.2f}
-- Months to reach goal at current savings: {months_to_goal:.1f} months
-- Top categories (with spending amounts): {top_categories.to_dict()}
-- Recurring subscriptions (description, amount, count): {recurring.to_dict()}
+- Goal timeframe: {goal_months} months
+- Top categories: {top_categories.to_dict()}
+- Recurring subscriptions: {recurring.to_dict()}
+- Gray charges / forgotten small recurring expenses: {gray_charges.to_dict()}
 
-Your task is to generate an **in-depth, persona-driven financial report**. Include the following sections:
+Tasks:
+1. **Personalized Goal Forecasting**
+   - Determine if user is on track to reach goal within {goal_months} months.
+   - If not, suggest exact amounts to cut or save to meet goal.
+   - Include "what-if" scenarios: e.g., cancel subscriptions, reduce top category spending.
 
-1. **Summary of Financial Health**
-   - Evaluate savings vs salary
-   - Explain if user is on track to reach goal
-   - Provide overall assessment
+2. **Subscription & Gray Charge Detector**
+   - Present all recurring subscriptions, free trials turned paid, and other gray charges in a clear list.
+   - Highlight potential savings if canceled.
 
-2. **Category-wise Spending Analysis**
-   - Highlight top 5 spending categories
-   - Point out overspending or optimization opportunities
-   - Explain trends or anomalies
+3. **Category-wise Spending Analysis**
+   - Identify overspending categories and trends.
+   - Include actionable tips tailored to persona.
 
-3. **Recurring Expenses Insight**
-   - Identify recurring subscriptions that can be reduced
-   - Suggest savings if adjustments are made
+4. **Actionable Recommendations**
+   - Provide a prioritized list of steps the user can take immediately.
+   - Include motivational guidance per persona.
 
-4. **Trends & Forecasting**
-   - Compare recent spending vs average
-   - Predict time to reach goal
-   - Include "what-if" scenarios if user saves more or reduces subscriptions
+5. **Report Format**
+   - Markdown only, use tables, bullet points, percentages.
+   - Provide in-depth, persona-consistent commentary.
 
-5. **Actionable Recommendations**
-   - Clear, persona-tailored tips
-
-6. **Encouragement & Motivation**
-   - Positive reinforcement
-   - Suggest milestones and fun tips
-
-Respond strictly in **Markdown**, include tables, bullet points, percentages, and persona-consistent commentary.
+Generate a detailed report combining all sections above with calculations and realistic forecasts.
 """
     )
 
