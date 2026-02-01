@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import re
 from datetime import datetime, timedelta
 from agno.agent import Agent
 from agno.models.groq import Groq
@@ -15,9 +16,9 @@ st.set_page_config(page_title="Elite Financial Intelligence Coach", layout="wide
 st.title("Elite Financial Intelligence Coach 💬")
 
 voices = {
-    "Conservative Advisor": "You are a highly disciplined Wealth Protector. Focus on mathematical certainty and risk mitigation. Your tone is professional, stern, and focused on security.",
-    "Fun Saver": "You are a high-energy Financial Buddy. Your philosophy is 'Save Hard, Play Hard.' Use emojis, humor, and enthusiastic encouragement. Be extremely verbose and persona-rich.",
-    "Analytical Guru": "You are a meticulous Quantitative Strategist. You provide deep-dive insights into categorical anomalies with surgical precision and data-driven logic."
+    "Conservative Advisor": "You are a highly disciplined, risk-averse Wealth Protector. Your focus is on capital preservation, debt elimination, and long-term security. You view unnecessary spending as a threat to the user's future. Your tone is professional, stern, and focused on mathematical certainty.",
+    "Fun Saver": "You are a high-energy, motivational Financial Buddy. Your philosophy is 'Save Hard, Play Hard.' You help users find 'hidden money' in their spending so they can fund their dreams without feeling deprived. You use emojis, humor, and enthusiastic encouragement to make budgeting feel like a win.",
+    "Analytical Guru": "You are a meticulous Data Scientist and Quantitative Strategist. You care about trends, standard deviations, and spending velocities. You provide deep-dive insights into categorical anomalies and use data-driven forecasting to map out the user's financial trajectory with surgical precision."
 }
 
 selected_voice = st.selectbox("Choose Advisor Persona", list(voices.keys()))
@@ -45,15 +46,29 @@ if st.session_state.last_voice != selected_voice:
     st.session_state.last_voice = selected_voice
 
 if not st.session_state.chat_history:
-    agent = Agent(model=llm, instructions=f"You are the {selected_voice}. {voices[selected_voice]} Greet the user with an extremely verbose introduction and request the transaction file.")
+    agent = Agent(model=llm, instructions=f"You are the {selected_voice}. {voices[selected_voice]} Greet the user with a medium-length, persona-rich introduction and request the transaction file for deep financial analysis.")
     resp = agent.run("Introduce yourself.")
     st.session_state.chat_history.append({"sender": "coach", "message": resp.content})
+
+with st.sidebar:
+    st.header("Financial Dashboard 📈")
+    if st.session_state.user_data["viz_data"]:
+        vd = st.session_state.user_data["viz_data"]
+        st.metric("Savings Rate", f"{vd['rate']:.1f}%")
+        st.metric("Monthly Savings", f"${vd['sav']:,.2f}")
+        st.metric("Monthly Gap", f"${vd['gap']:,.2f}")
+        st.write("**Top Spending (90 Days)**")
+        st.bar_chart(vd['top_df'])
+        st.write("**Savings Projection**")
+        st.line_chart(vd['proj_df'])
+    else:
+        st.info("Upload data and set goals to see visualizations.")
 
 if st.session_state.user_data["uploaded_file"] is None:
     uploaded_file = st.file_uploader("Upload Transaction Ledger (CSV/XLSX):", type=["csv","xlsx"])
     if uploaded_file is not None:
         st.session_state.user_data["uploaded_file"] = uploaded_file
-        agent = Agent(model=llm, instructions=f"You are the {selected_voice}. {voices[selected_voice]} The user uploaded the file. Celebrate verbosely and ask for the target goal amount.")
+        agent = Agent(model=llm, instructions=f"You are the {selected_voice}. {voices[selected_voice]} Acknowledge the data ingestion and inquire about the primary savings objective (goal amount) in a medium-length response.")
         resp = agent.run("Acknowledge file.")
         st.session_state.chat_history.append({"sender": "coach", "message": resp.content})
         st.rerun()
@@ -63,47 +78,36 @@ user_input = st.chat_input("Type here...")
 if user_input:
     st.session_state.chat_history.append({"sender": "user", "message": user_input})
     user_data = st.session_state.user_data
-    input_val = user_input.replace(',', '').replace('$', '').strip()
-    
-    q_agent = Agent(model=llm, instructions=f"You are the {selected_voice}. {voices[selected_voice]} You are gathering data. Be extremely verbose, persona-consistent, and engaging.")
+    found_numbers = re.findall(r'\d+(?:\.\d+)?', user_input.replace(',', ''))
+    q_agent = Agent(model=llm, instructions=f"You are the {selected_voice}. {voices[selected_voice]} You are gathering quantitative parameters. Be medium-length, persona-consistent, and detailed.")
 
     if user_data["goal_amount"] is None:
-        if input_val.replace('.', '', 1).isdigit():
-            user_data["goal_amount"] = float(input_val)
-            resp = q_agent.run(f"User set goal to ${input_val}. Celebrate this in character and ask how many months they have.")
+        if found_numbers:
+            user_data["goal_amount"] = float(found_numbers[0])
+            if len(found_numbers) > 1:
+                user_data["goal_months"] = int(float(found_numbers[1]))
+                resp = q_agent.run(f"User set goal to ${user_data['goal_amount']} in {user_data['goal_months']} months. Validate this and ask for their net monthly income.")
+            else:
+                resp = q_agent.run(f"User set goal to ${user_data['goal_amount']}. Ask for the temporal horizon (months) for achievement.")
             response = resp.content
-        else: response = "I need a numeric value for the target amount, my friend!"
+        else: response = "I require numeric input to establish the target baseline. What is your goal?"
     elif user_data["goal_months"] is None:
-        if input_val.isdigit():
-            user_data["goal_months"] = int(input_val)
-            resp = q_agent.run(f"Timeframe is {input_val} months. Ask for their monthly net income in character.")
+        if found_numbers:
+            user_data["goal_months"] = int(float(found_numbers[0]))
+            resp = q_agent.run(f"Temporal horizon set to {user_data['goal_months']} months. Inquire about net monthly income.")
             response = resp.content
-        else: response = "Please specify the duration in months as a number."
+        else: response = "Please specify the duration in months as a numeric value."
     elif user_data["monthly_salary"] is None:
-        if input_val.replace('.', '', 1).isdigit():
-            user_data["monthly_salary"] = float(input_val)
-            response = "Mathematical parameters locked. Synthesizing exhaustive financial intelligence report..."
-        else: response = "I need your monthly income figure to finalize the baseline."
+        if found_numbers:
+            user_data["monthly_salary"] = float(found_numbers[0])
+            response = "Variables locked. Commencing exhaustive multi-dimensional financial audit..."
+        else: response = "Net income data is required to finalize the predictive models."
     else:
         user_data["report_generated"] = False
-        response = "Recalculating all financial models with new context..."
+        response = "Recalculating all statistical models with updated context..."
 
     st.session_state.chat_history.append({"sender": "coach", "message": response})
     st.rerun()
-
-if st.session_state.user_data["viz_data"]:
-    vd = st.session_state.user_data["viz_data"]
-    st.subheader("Critical Financial Visuals 📊")
-    m1, m2, m3 = st.columns(3)
-    m1.metric("Savings Rate", f"{vd['rate']:.1f}%")
-    m2.metric("Monthly Savings", f"${vd['sav']:,.2f}")
-    m3.metric("Goal Shortfall Gap", f"${vd['gap']:,.2f}")
-    c1, c2 = st.columns(2)
-    c1.write("**Top Expenditure Categories**")
-    c1.bar_chart(vd['top_df'])
-    c2.write("**Goal Savings Projection**")
-    c2.line_chart(vd['proj_df'])
-    st.divider()
 
 for entry in st.session_state.chat_history:
     with st.chat_message("user" if entry["sender"] == "user" else "assistant"):
@@ -128,8 +132,8 @@ if all([user_data["uploaded_file"], user_data["goal_amount"], user_data["goal_mo
     if amt_col: df[amt_col] = pd.to_numeric(df[amt_col], errors='coerce').abs()
     df = df.dropna(subset=[amt_col, cat_col])
 
-    df_recent = df[df[date_col] >= (datetime.now() - timedelta(days=60))] if date_col else df
-    monthly_spending = df_recent.groupby(df_recent[date_col].dt.to_period('M'))[amt_col].sum().mean() if date_col else df_recent[amt_col].sum() / 2
+    df_recent = df[df[date_col] >= (datetime.now() - timedelta(days=90))] if date_col else df
+    monthly_spending = df_recent.groupby(df_recent[date_col].dt.to_period('M'))[amt_col].sum().mean() if date_col else df_recent[amt_col].sum() / 3
     monthly_savings = max(user_data["monthly_salary"] - monthly_spending, 0)
     required_monthly = user_data["goal_amount"] / user_data["goal_months"]
     savings_gap = max(required_monthly - monthly_savings, 0)
@@ -139,7 +143,7 @@ if all([user_data["uploaded_file"], user_data["goal_amount"], user_data["goal_mo
     recurring_dict = recurring[recurring['count'] > 1].to_dict('records')
     
     top_df = pd.DataFrame(list(top_cats.items()), columns=['Category', 'Amount']).set_index('Category')
-    proj_df = pd.DataFrame({"Month": range(1, user_data["goal_months"] + 1), "Goal Pace": [required_monthly * i for i in range(1, user_data["goal_months"] + 1)], "Current Pace": [monthly_savings * i for i in range(1, user_data["goal_months"] + 1)]}).set_index("Month")
+    proj_df = pd.DataFrame({"Month": range(1, user_data["goal_months"] + 1), "Goal": [required_monthly * i for i in range(1, user_data["goal_months"] + 1)], "Current": [monthly_savings * i for i in range(1, user_data["goal_months"] + 1)]}).set_index("Month")
     user_data["viz_data"] = {"rate": (monthly_savings/user_data["monthly_salary"]*100), "sav": monthly_savings, "spend": monthly_spending, "gap": savings_gap, "top_df": top_df, "proj_df": proj_df}
 
     financial_agent = Agent(
@@ -154,21 +158,21 @@ STRICT FINANCIAL ANCHORS:
 - STRATEGIC TIMEFRAME: {user_data['goal_months']} months
 - MONTHLY NET INCOME: ${user_data['monthly_salary']:.2f}
 - REQUIRED MONTHLY SAVINGS: ${required_monthly:,.2f}
-- ACTUAL MONTHLY SAVINGS: ${monthly_savings:,.2f}
+- ACTUAL MONTHLY SAVINGS (90-DAY AVG): ${monthly_savings:,.2f}
 - MONTHLY SAVINGS GAP: ${savings_gap:,.2f}
 
 CORE MISSION (BE EXTREMELY VERBOSE, DETAILED, AND ANALYTICAL):
 1. EXECUTIVE FINANCIAL HEALTH AUDIT:
    - Provide a 'Health Grade' (A+ to F).
    - Evaluate the objective feasibility of reaching ${user_data['goal_amount']:.2f} in {user_data['goal_months']} months based on current velocity.
-   - Use bold headers and professional summaries.
+   - Use bold headers and professional summaries (BUT DO NOT USE THE LITERAL HEADING "EXECUTIVE FINANCIAL HEALTH AUDIT", use persona-consistent headings).
 
 2. QUANTITATIVE PROJECTION & FORECASTING:
    - Create a detailed month-by-month projection table for the next {user_data['goal_months']} months based on ACTUAL savings.
    - Highlight the 'Savings Gap'—the exact amount needed to increase monthly savings to hit the goal early.
 
 3. SUBSCRIPTION & "GRAY CHARGE" DETECTOR:
-   - Identify all recurring subscriptions, forgotten free trials, and converted paid services from: {recurring_dict}.
+   - Identify all recurring subscriptions, forgotten free trials, and converted paid services from: {recurring_dict}. Scan for sneaky fees.
    - Present them in a single, clean list with identified annual costs.
 
 4. SPENDING LEAKAGE & ANOMALY DETECTION:
@@ -176,17 +180,23 @@ CORE MISSION (BE EXTREMELY VERBOSE, DETAILED, AND ANALYTICAL):
    - Contrast spending against the 50/30/20 rule of thumb.
 
 5. RISK ASSESSMENT & STRESS TEST:
-   - Simulate an 'Emergency Scenario' (e.g., a 15% income drop or a $1,500 surprise expense). 
-   - Show how this event shifts the goal timeline.
+   - Simulate an 'Emergency Scenario' (e.g., a 15% income drop or a $1,500 one-time surprise expense). 
+   - Show how this event shifts the goal timeline mathematically.
 
 6. THREE-TIER STRATEGIC ROADMAP:
-   - Tier 1: Aggressive. Tier 2: Balanced. Tier 3: Defensive.
+   - Tier 1: Aggressive (High discipline, rapid goal achievement).
+   - Tier 2: Balanced (Current pace with minor optimizations).
+   - Tier 3: Defensive (Safety-first approach with emergency fund prioritization).
 
 7. PERSONA-DRIVEN CLOSING & INTERACTION:
    - Ask a highly sophisticated, verbose question based on your persona to provoke deeper user thought.
    - Respond directly to the user's last message: {st.session_state.chat_history[-2]['message'] if len(st.session_state.chat_history) > 1 else 'None'}.
 
-OUTPUT FORMATTING: Use Markdown only. Complex tables, bold callouts, and blockquotes for emphasis. Ensure tone remains 100% consistent with {selected_voice}.
+OUTPUT FORMATTING: 
+- Use Markdown only. 
+- Use complex tables, bold callouts, and blockquotes for emphasis. 
+- DO NOT use generic system headers; use headers that match the {selected_voice} style.
+- Ensure the tone remains 100% consistent with the {selected_voice} persona.
 """
     )
     report = financial_agent.run(st.session_state.chat_history[-2]["message"] if len(st.session_state.chat_history) > 1 else "Initial Full Intelligence Report Request")
