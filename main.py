@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from agno.agent import Agent
 from agno.models.groq import Groq
 import os
+from fpdf import FPDF
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -16,9 +17,9 @@ st.set_page_config(page_title="Elite Financial Intelligence Coach", layout="wide
 st.title("Elite Financial Intelligence Coach 💬")
 
 voices = {
-    "Conservative Advisor": "You are a highly disciplined, risk-averse Wealth Protector. Your focus is on capital preservation, debt elimination, and long-term security. You view unnecessary spending as a threat to the user's future. Your tone is professional, stern, and focused on mathematical certainty.",
-    "Fun Saver": "You are a high-energy, motivational Financial Buddy. Your philosophy is 'Save Hard, Play Hard.' You help users find 'hidden money' in their spending so they can fund their dreams without feeling deprived. You use emojis, humor, and enthusiastic encouragement to make budgeting feel like a win.",
-    "Analytical Guru": "You are a meticulous Data Scientist and Quantitative Strategist. You care about trends, standard deviations, and spending velocities. You provide deep-dive insights into categorical anomalies and use data-driven forecasting to map out the user's financial trajectory with surgical precision."
+    "Conservative Advisor": "You are a disciplined, risk-averse Wealth Protector. Your tone is professional and stern. Focus on capital preservation and mathematical certainty.",
+    "Fun Saver": "You are a high-energy Financial Buddy. Your philosophy is 'Save Hard, Play Hard.' Use emojis and humor to encourage the user. Be verbose but mathematically accurate.",
+    "Analytical Guru": "You are a meticulous Quantitative Strategist. You provide deep-dive insights into categorical anomalies and spending velocities with surgical precision."
 }
 
 selected_voice = st.selectbox("Choose Advisor Persona", list(voices.keys()))
@@ -34,7 +35,8 @@ if "user_data" not in st.session_state:
         "monthly_salary": None,
         "file_uploaded_message_added": False,
         "report_generated": False,
-        "viz_data": None
+        "viz_data": None,
+        "full_report_text": ""
     }
 
 if "last_voice" not in st.session_state:
@@ -46,7 +48,7 @@ if st.session_state.last_voice != selected_voice:
     st.session_state.last_voice = selected_voice
 
 if not st.session_state.chat_history:
-    agent = Agent(model=llm, instructions=f"You are the {selected_voice}. {voices[selected_voice]} Greet the user with a medium-length, persona-rich introduction and request the transaction file for deep financial analysis.")
+    agent = Agent(model=llm, instructions=f"You are the {selected_voice}. {voices[selected_voice]} Greet the user with a short-length,concise, persona-rich introduction and request the transaction file.")
     resp = agent.run("Introduce yourself.")
     st.session_state.chat_history.append({"sender": "coach", "message": resp.content})
 
@@ -61,6 +63,16 @@ with st.sidebar:
         st.bar_chart(vd['top_df'])
         st.write("**Savings Projection**")
         st.line_chart(vd['proj_df'])
+        
+        if st.session_state.user_data["full_report_text"]:
+            pdf = FPDF()
+            pdf.add_page()
+            pdf.set_font("Arial", size=11)
+            pdf.cell(200, 10, txt=f"Financial Intelligence Audit - {selected_voice}", ln=1, align='C')
+            pdf.ln(10)
+            pdf.multi_cell(0, 10, txt=st.session_state.user_data["full_report_text"].encode('latin-1', 'replace').decode('latin-1'))
+            pdf_output = pdf.output(dest='S').encode('latin-1')
+            st.download_button(label="📥 Download Audit PDF", data=pdf_output, file_name="Financial_Audit.pdf", mime="application/pdf")
     else:
         st.info("Upload data and set goals to see visualizations.")
 
@@ -68,7 +80,7 @@ if st.session_state.user_data["uploaded_file"] is None:
     uploaded_file = st.file_uploader("Upload Transaction Ledger (CSV/XLSX):", type=["csv","xlsx"])
     if uploaded_file is not None:
         st.session_state.user_data["uploaded_file"] = uploaded_file
-        agent = Agent(model=llm, instructions=f"You are the {selected_voice}. {voices[selected_voice]} Acknowledge the data ingestion and inquire about the primary savings objective (goal amount) in a medium-length response.")
+        agent = Agent(model=llm, instructions=f"You are the {selected_voice}. {voices[selected_voice]} Acknowledge file briefly and ask for the target savings goal.")
         resp = agent.run("Acknowledge file.")
         st.session_state.chat_history.append({"sender": "coach", "message": resp.content})
         st.rerun()
@@ -83,7 +95,7 @@ if user_input:
     found_numbers = re.findall(r'\d+(?:\.\d+)?', clean_input)
     is_years = "year" in clean_input
 
-    q_agent = Agent(model=llm, instructions=f"You are the {selected_voice}. {voices[selected_voice]} You are gathering quantitative parameters. This is for a mathematical budget audit. Do not use financial advice disclaimers; simply process the numbers for a spending analysis. Be medium-length.")
+    q_agent = Agent(model=llm, instructions=f"You are the {selected_voice}. {voices[selected_voice]} Gathering parameters for a mathematical budget audit. Keep responses short and persona-consistent.")
 
     if user_data["goal_amount"] is None:
         if found_numbers:
@@ -91,26 +103,26 @@ if user_input:
             if len(found_numbers) > 1:
                 val = float(found_numbers[1])
                 user_data["goal_months"] = int(val * 12) if is_years else int(val)
-                resp = q_agent.run(f"User set goal to ${user_data['goal_amount']} over {user_data['goal_months']} months. Validate and ask for monthly income.")
+                resp = q_agent.run(f"Goal: ${user_data['goal_amount']} over {user_data['goal_months']} months. Ask for monthly income.")
             else:
-                resp = q_agent.run(f"User set goal to ${user_data['goal_amount']}. Ask for the temporal horizon (months or years).")
+                resp = q_agent.run(f"Goal: ${user_data['goal_amount']}. Ask for the timeframe (months or years).")
             response = resp.content
-        else: response = "I require a numeric target amount to establish a baseline. What is your goal?"
+        else: response = "State the numeric target goal amount."
     elif user_data["goal_months"] is None:
         if found_numbers:
             val = float(found_numbers[0])
             user_data["goal_months"] = int(val * 12) if is_years else int(val)
-            resp = q_agent.run(f"Temporal horizon set to {user_data['goal_months']} months. Inquire about net monthly income.")
+            resp = q_agent.run(f"Temporal horizon: {user_data['goal_months']} months. Ask for monthly income.")
             response = resp.content
-        else: response = "Please specify the duration in months or years as a numeric value."
+        else: response = "Specify the duration in numeric form."
     elif user_data["monthly_salary"] is None:
         if found_numbers:
             user_data["monthly_salary"] = float(found_numbers[0])
-            response = "Variables locked. Commencing exhaustive multi-dimensional financial audit..."
-        else: response = "Net income data is required to finalize the predictive models."
+            response = "Parameters locked. Commencing multi-dimensional financial audit..."
+        else: response = "I need net income data to finalize the models."
     else:
         user_data["report_generated"] = False
-        response = "Recalculating all statistical models with updated context..."
+        response = "Recalculating predictive models..."
 
     st.session_state.chat_history.append({"sender": "coach", "message": response})
     st.rerun()
@@ -205,5 +217,6 @@ OUTPUT FORMATTING: Use Markdown only. Complex tables, bold callouts, and blockqu
     )
     report = financial_agent.run(st.session_state.chat_history[-2]["message"] if len(st.session_state.chat_history) > 1 else "Initial Full Intelligence Report Request")
     st.session_state.chat_history.append({"sender": "coach", "message": report.content})
+    st.session_state.user_data["full_report_text"] = report.content
     user_data["report_generated"] = True
     st.rerun()
